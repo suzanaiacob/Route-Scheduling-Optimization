@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+
+<!-- This file takes a json input and calls the Google Distance Matrix API to get the distance matrix 
+!!!!! Attention API Project key needed to run this. Key passed to script tag at the bottom
+!!!!! Running this will trigger billing on the project associated with the key
+
+Get started docs: https://developers.google.com/maps/gmp-get-started
+API docs: https://developers.google.com/maps/documentation/javascript/distancematrix
+Service set-up and example: https://developers-dot-devsite-v2-prod.appspot.com/maps/documentation/javascript/examples/distance-matrix
+ -->
+<html>
+  <head>
+    <script type="text/javascript" src="stops_reduced_v7.json"></script>
+  </head>
+  <body>
+    <script>
+
+      function pauseBrowser(millis) {
+          var date = Date.now();
+          var curDate = null;
+          do {
+              curDate = Date.now();
+          } while (curDate-date < millis);
+      }
+
+      //final variables in which we store the output of the script
+      durationMatrix = [];
+      var addresses = loadData();
+
+      function loadData() {
+        var routeStops = JSON.parse(data);
+        var addresses = []
+
+        for (var i = 0; i < routeStops.length; i++) {
+              addresses.push(routeStops[i]);
+            }
+        return addresses;
+      }
+
+      function initMap() {
+        //Function to call the Distance Matrix API and process the response !todo parse the response in a separate function
+        //Input : JSON arrays of origins and destination !todo  
+        //Output : Nothing, the result is printed to the console
+        
+
+        //Call to Distance Matrix API (it's important that this is done asynchronously)
+        var service = new google.maps.DistanceMatrixService;
+
+        for (var i = 93; i <addresses.length; i++) {
+
+          var origin = []; // this is an array because that's how the API requires but we only make req. for 1 address at a time
+          origin.push(addresses[i].fullAdress); // just the address
+
+          current_batch = 100;
+          no_destinations = addresses.length - (i+1);
+          if (no_destinations > 25) {
+            current_batch = i + 25;  // to not exceed the max destination limit
+          } else {
+            var destinations = []; 
+            for(j = i+1; j<addresses.length; j++) {
+               destinations.push(addresses[j].fullAdress);
+            }
+            if(origin.length >0 && destinations.length >0) {
+              console.log("Making request for origin: " + (i+1) + " " + origin + ", destinations: " + destinations);
+
+              pauseBrowser(2000); // to not exceed the Google API requests per second limit
+
+              //Call to Distance Matrix API (it's important that this is done asynchronously)
+              //We call the API for each origin and the list of destionations (the upper triangle of the matrix)
+              
+              service.getDistanceMatrix({
+              origins: origin,
+              destinations: destinations,
+              travelMode: 'DRIVING',
+              unitSystem: google.maps.UnitSystem.METRIC,
+              avoidHighways: false,
+              avoidTolls: false
+              }, function(response, status) {
+                if (status !== 'OK') {
+                  alert('Error was: ' + status);
+                } else {
+                  processResponse(response);
+                  console.log(durationMatrix);
+                }
+              });
+
+            }
+
+          }
+          
+          console.log("total destinations: " + no_destinations);
+
+          while (current_batch <= (no_destinations+i)) {
+            console.log("current destination batch: " + current_batch);
+            var destinations = []; //mutiple destinations
+            if (current_batch == (i+25)) {
+              j = i+1;
+            } else {
+              j = last_index + 1;
+            }
+            
+            while (j <= current_batch) {
+              destinations.push(addresses[j].fullAdress);
+              j++;
+            }
+            last_index = j-1;
+
+            if(origin.length >0 && destinations.length >0) {
+              console.log("Making request for origin: " + (i+1) + " " + origin + ", destinations: " + destinations);
+
+              pauseBrowser(2000); // to not exceed the Google API requests per second limit
+
+              // // Call to Distance Matrix API (it's important that this is done asynchronously)
+              // // We call the API for each origin and the list of destionations (the upper triangle of the matrix)
+              
+              service.getDistanceMatrix({
+              origins: origin,
+              destinations: destinations,
+              travelMode: 'DRIVING',
+              unitSystem: google.maps.UnitSystem.METRIC,
+              avoidHighways: false,
+              avoidTolls: false
+              }, function(response, status) {
+                if (status !== 'OK') {
+                  alert('Error was: ' + status);
+                } else {
+                  processResponse(response);
+                  console.log(durationMatrix);
+                }
+              });
+
+            }
+
+            if((current_batch+25) < (no_destinations+i)) {
+              current_batch += 25;
+            } else if (current_batch == (no_destinations+i)) {
+              current_batch += 100;
+            } else {
+              current_batch = (no_destinations+i);
+            }
+            
+          }    
+        }
+      }
+
+      function processResponse(response) {
+            var originList = response.originAddresses;
+            var destinationList = response.destinationAddresses;
+
+            for (var i = 0; i < originList.length; i++) {
+              var results = response.rows[i].elements;
+
+              //save origin, destination, duration
+              for (var j = 0; j < results.length; j++) {
+                originAddress = originList[i];               // this is not what we sent to the API but what the API thinks we meant...
+                destinationAddress = destinationList[j];     // ...often different things but same actual address
+                duration = results[j].duration.value/60 + 5; //adding 5 minutes to all values for traffic buffer
+
+                stopsPair = {
+                  "originAddress": originAddress,
+                  "destinationAddress": destinationAddress,
+                  "duration": duration
+                }
+
+                if (!matrixIncludes(durationMatrix, stopsPair)) {
+                  processStop(stopsPair);
+                  durationMatrix.push(stopsPair);
+                }
+
+                //complete the matrix
+                stopsPairReversed = {
+                  "originAddress": destinationAddress,
+                  "destinationAddress": originAddress,
+                  "duration": duration
+                }
+                if (!matrixIncludes(durationMatrix, stopsPairReversed)) {
+                  processStop(stopsPairReversed);
+                  durationMatrix.push(stopsPairReversed);
+                }
+
+                stopsPairSelf = {
+                  "originAddress": originAddress,
+                  "destinationAddress": originAddress,
+                  "duration": 0
+                }
+                if (!matrixIncludes(durationMatrix, stopsPairSelf) ) {
+                  processStop(stopsPairSelf);
+                  durationMatrix.push(stopsPairSelf);
+                }
+
+                stopsPairSelf2 = {
+                  "originAddress": destinationAddress,
+                  "destinationAddress": destinationAddress,
+                  "duration": 0
+                }
+                if (!matrixIncludes(durationMatrix, stopsPairSelf2) ) {
+                  processStop(stopsPairSelf2);
+                  durationMatrix.push(stopsPairSelf2);
+                }
+
+              }
+            }
+      }
+
+      function processStop(stopsPair) {
+
+          for (var i = 0; i < addresses.length; i++) {
+            var addr = addresses[i];
+            var originAddress = stopsPair.originAddress.toUpperCase();
+            var destAddress = stopsPair.destinationAddress.toUpperCase();
+
+            if (originAddress.includes(addr.zipcode) &&
+             originAddress.includes(addr.stateName) &&
+             originAddress.includes(addr.cityName1) && 
+             originAddress.includes(addr.address.substring(0,7) )) {
+              stopsPair.origin_fullAddress = addr.fullAdress;
+              stopsPair.origin_addressCode = addr.addressCode;
+              stopsPair.origin_id_reference = addr.id_reference;
+             }
+
+             if (destAddress.includes(addr.zipcode) &&
+               destAddress.includes(addr.stateName) &&
+               destAddress.includes(addr.cityName1) && 
+               destAddress.includes(addr.address.substring(0,7))) {
+                stopsPair.destination_fullAddress = addr.fullAdress;
+                stopsPair.destination_addressCode = addr.addressCode;
+                stopsPair.destination_id_reference = addr.id_reference;
+             }
+
+          } 
+            
+      }
+
+      function matrixIncludes(durationMatrix, stopsPair) {
+        for (var i = 0; i < durationMatrix.length; i++) {
+          if(durationMatrix[i].originAddress == stopsPair.originAddress && 
+            durationMatrix[i].duration == stopsPair.duration)
+            return true;
+        }
+        return false;
+      }
+
+       console.log(durationMatrix);
+
+
+    </script>
+    <!-- Pass the API key here and callback to the main function (initMap) -->
+    <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyARg2W4EsAuNG9jnr4yYCB8mUVDfqIy8lc&callback=initMap">
+    </script>
+  </body>
+</html>
