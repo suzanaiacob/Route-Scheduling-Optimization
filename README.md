@@ -2,7 +2,7 @@
 
 This is an optimization project using location data to schedule transportation routes.
 
-This project was completed aliongside my MIT colleagues using real data from a logistics company. The goal was to schedule optimal transportation routes which reach a series of clients and arrive at the final destination according to pre-defined constraints (e.g. specific arrival and departure times, multiple arrivals at specific clients). The objective was to optimize for early arrivals at the final destination. 
+This project was completed aliongside my MIT colleagues using real data from a logistics company. The goal was to schedule optimal transportation routes which reach a series of clients and arrive at the final destination according to pre-defined constraints (e.g. specific arrival and departure times, multiple arrivals at specific clients). The objective was to optimize for early arrivals at the final destination. PLease see the **Logistics Route Optimization - Presentation** file for an overview of the project
 
 The project has three parts:
 - Data cleaning and exploratory data analysis (developed in R and Tableau)
