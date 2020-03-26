@@ -1,4 +1,4 @@
-# Route Shceduling Optimization
+# Route Scheduling Optimization
 
 This is an optimization project using location data to schedule transportation routes.
 
